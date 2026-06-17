@@ -1,0 +1,512 @@
+
+local Services = {
+    Players = game:GetService('Players'),
+    ReplicatedStorage = game:GetService('ReplicatedStorage'),
+    RunService = game:GetService('RunService'),
+    UserInputService = game:GetService('UserInputService'),
+    TweenService = game:GetService('TweenService'),
+}
+local Players = Services.Players
+local ReplicatedStorage = Services.ReplicatedStorage
+local RunService = Services.RunService
+local UserInputService = Services.UserInputService
+local TweenService = Services.TweenService
+
+pcall(function()
+    setthreadidentity(2)
+end)
+
+local LocalPlayer = Players.LocalPlayer
+if not LocalPlayer then
+    return warn("[MM2 TRADE] LocalPlayer not found")
+end
+
+local CONFIG = {
+    PARTNER_NAME = 'Set Nickname',
+    AUTO_ACCEPT_DELAY = 0.2,
+    AUTO_CONFIRM_DELAY = 0.3,
+    AUTO_ACCEPT_ENABLED = false,
+    AUTO_CONFIRM_ENABLED = false,
+}
+
+local RANDOM_NAMES = {
+    'xXProGamer420Xx', 'NeonShadow99', 'CrimsonVoid', 'PhantomKnight',
+    'SilentHunter88', 'VortexNinja', 'ScarletRaven', 'EchoSpecter',
+    'NovaNyx', 'ThunderStrike', 'VenomBlade', 'FrostWolf',
+    'InfernoFury', 'CyberPulse', 'AbyssWalker', 'SolarFlare',
+    'LunaEclipse', 'VoidStalker', 'PyroclasM', 'NightWraith',
+    'EmberSoul', 'IcePhantom', 'ObsidianEdge', 'ZenithAbyss',
+}
+
+local function getRandomName()
+    return RANDOM_NAMES[math.random(1, #RANDOM_NAMES)]
+end
+
+local mockState = {
+    active = false,
+    tradePartner = nil,
+    lastOffer = nil,
+    pendingTradeRequest = false,
+}
+
+local TradeModule = nil
+local TradeGUI = nil
+local TradeRemote = nil
+
+local function waitForTradeModule()
+    local success, result = xpcall(function()
+        return require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("TradeModule"))
+    end, function(err)
+        warn("[MM2 TRADE] Error loading TradeModule:", err)
+    end)
+    return success and result or nil
+end
+
+local function waitForTradeGUI()
+    local gui = nil
+    for i = 1, 50 do
+        gui = LocalPlayer:FindFirstChild("PlayerGui") and (
+            LocalPlayer.PlayerGui:FindFirstChild("TradeGUI_Phone") or 
+            LocalPlayer.PlayerGui:FindFirstChild("TradeGUI")
+        )
+        if gui then
+            return gui
+        end
+        task.wait(0.1)
+    end
+    return nil
+end
+
+local function getTradeRemote()
+    return ReplicatedStorage:FindFirstChild("Trade")
+end
+
+local function init()
+    print("[MM2 TRADE] Инициализация...")
+    
+    TradeModule = waitForTradeModule()
+    if not TradeModule then
+        warn("[MM2 TRADE] Не удалось загрузить TradeModule")
+        return false
+    end
+    
+    print("[MM2 TRADE] === TRADE MODULE FUNCTIONS ===")
+    for k, v in pairs(TradeModule) do
+        if type(v) == "function" then
+            print("  📌 " .. k .. "()")
+        end
+    end
+    print("[MM2 TRADE] === END MODULE FUNCTIONS ===")
+    
+    TradeGUI = waitForTradeGUI()
+    if not TradeGUI then
+        warn("[MM2 TRADE] Не удалось найти TradeGUI")
+        return false
+    end
+    
+    TradeRemote = getTradeRemote()
+    if not TradeRemote then
+        warn("[MM2 TRADE] Не удалось найти Trade удалённые функции")
+        return false
+    end
+    
+    print("[MM2 TRADE] === TRADE REMOTES ===")
+    for _, child in pairs(TradeRemote:GetChildren()) do
+        print("  📡 " .. child.Name .. " (" .. child.ClassName .. ")")
+    end
+    print("[MM2 TRADE] === END REMOTES ===")
+    
+    print("[MM2 TRADE] Готово к работе")
+    return true
+end
+
+local function simulateTradeRequest(senderName)
+    if not TradeModule or not TradeGUI then
+        return warn("[MM2 TRADE] Trade система не инициализирована")
+    end
+    
+    print("[MM2 TRADE] Симуляция Trade Request от " .. senderName)
+    
+    if mockState.pendingTradeRequest then
+        return warn("[MM2 TRADE] Уже есть активный Trade Request")
+    end
+    
+    mockState.pendingTradeRequest = true
+    mockState.tradePartner = senderName
+    
+    task.wait(CONFIG.AUTO_ACCEPT_DELAY)
+    
+    if TradeModule.UpdateTradeRequestWindow then
+        TradeModule.UpdateTradeRequestWindow("ReceivingRequest", {
+            Sender = {
+                Name = senderName
+            }
+        })
+        print("[MM2 TRADE] Trade Request UI обновлён")
+    end
+    
+    if TradeModule.ConnectRequestWindow then
+        pcall(TradeModule.ConnectRequestWindow)
+    end
+    
+    return true
+end
+
+local function startTradeScreen()
+    if not mockState.tradePartner then
+        return warn("[MM2 TRADE] Нет партнёра для торговли")
+    end
+    
+    print("[MM2 TRADE] Открываю торговый экран с " .. mockState.tradePartner)
+    
+    task.wait(0.5)
+    
+    local success = false
+ 
+    if TradeModule and TradeModule.SendTradeRequest then
+        pcall(function()
+            local result = TradeModule.SendTradeRequest(mockState.tradePartner)
+            print("[MM2 TRADE] ✓ SendTradeRequest() вызвана, результат: " .. tostring(result))
+            success = true
+        end)
+    end
+    
+
+    if TradeGUI then
+        local tradeGridLayout = TradeGUI:FindFirstChild("TradeGridLayout")
+        if tradeGridLayout then
+            pcall(function()
+                print("[MM2 TRADE] ✓ Найден TradeGridLayout")
+                -- Попробуем активировать его
+                if tradeGridLayout:FindFirstChild("Visible") then
+                    tradeGridLayout.Visible = true
+                end
+            end)
+        else
+            print("[MM2 TRADE] TradeGridLayout не найден")
+        end
+    end
+    
+
+    if TradeModule and TradeModule.UpdateTradeInventory then
+        pcall(function()
+            TradeModule.UpdateTradeInventory()
+            print("[MM2 TRADE] ✓ UpdateTradeInventory() вызвана")
+        end)
+    end
+    
+
+    if TradeModule and TradeModule.ConnectTabButtons then
+        pcall(function()
+            TradeModule.ConnectTabButtons()
+            print("[MM2 TRADE] ✓ ConnectTabButtons() вызвана")
+        end)
+    end
+    
+
+    if TradeModule and TradeModule.ConnectOfferButtons then
+        pcall(function()
+            TradeModule.ConnectOfferButtons()
+            print("[MM2 TRADE] ✓ ConnectOfferButtons() вызвана")
+        end)
+    end
+    
+
+    if TradeModule and TradeModule.UpdateTradeRequestWindow then
+        pcall(function()
+            TradeModule.UpdateTradeRequestWindow("Trading", {
+                Partner = mockState.tradePartner
+            })
+            print("[MM2 TRADE] ✓ UpdateTradeRequestWindow(Trading) вызвана")
+            success = true
+        end)
+    end
+    
+    mockState.active = success
+    
+    if success then
+        print("[MM2 TRADE] ✓✓✓ Торговля инициирована!")
+    else
+        warn("[MM2 TRADE] ❌ Ошибка при открытии торговли")
+    end
+    
+    return success
+end
+
+
+local function autoAcceptTradeRequest()
+    if not mockState.pendingTradeRequest then
+        return warn("[MM2 TRADE] Нет активного Trade Request")
+    end
+    
+    print("[MM2 TRADE] Auto-accept Trade Request")
+    
+    task.wait(CONFIG.AUTO_ACCEPT_DELAY)
+    
+
+    if TradeRemote and TradeRemote:FindFirstChild("AcceptRequest") then
+        TradeRemote.AcceptRequest:FireServer()
+    end
+    
+    mockState.pendingTradeRequest = false
+    
+    -- Автоматически открываем торговый экран
+    task.wait(0.5)
+    startTradeScreen()
+    
+    return true
+end
+
+
+local function autoConfirmTrade()
+    if not mockState.active then
+        return warn("[MM2 TRADE] Нет активной торговли")
+    end
+    
+    print("[MM2 TRADE] Auto-confirm Trade")
+    
+    task.wait(CONFIG.AUTO_CONFIRM_DELAY)
+    
+    if TradeRemote and TradeRemote:FindFirstChild("AcceptTrade") then
+        TradeRemote.AcceptTrade:FireServer(game.PlaceId * 3, mockState.lastOffer)
+    end
+    
+    return true
+end
+
+
+local function hookTradeEvents()
+    if not TradeRemote then
+        return
+    end
+    
+    if TradeRemote:FindFirstChild("StartTrade") then
+        TradeRemote.StartTrade.OnClientEvent:Connect(function(tradeState, partnerName)
+            print("[MM2 TRADE] Торговля началась с " .. partnerName)
+            mockState.active = true
+            mockState.tradePartner = partnerName
+            mockState.lastOffer = tradeState and tradeState.LastOffer or nil
+        end)
+    end
+    
+    if TradeRemote:FindFirstChild("UpdateTrade") then
+        TradeRemote.UpdateTrade.OnClientEvent:Connect(function(tradeState)
+            if tradeState then
+                mockState.lastOffer = tradeState.LastOffer
+            end
+        end)
+    end
+    
+    if TradeRemote:FindFirstChild("DeclineTrade") then
+        TradeRemote.DeclineTrade.OnClientEvent:Connect(function()
+            print("[MM2 TRADE] Торговля отклонена")
+            mockState.active = false
+        end)
+    end
+    
+    if TradeRemote:FindFirstChild("AcceptTrade") then
+        TradeRemote.AcceptTrade.OnClientEvent:Connect(function(success)
+            if success then
+                print("[MM2 TRADE] Торговля завершена успешно")
+            end
+            mockState.active = false
+        end)
+    end
+end
+
+local function createTradeGUI()
+
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "MM2TradeGui"
+    screenGui.ResetOnSpawn = false
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+    
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Name = "MainFrame"
+    mainFrame.Size = UDim2.new(0, 350, 0, 280)
+    mainFrame.Position = UDim2.new(0.5, -175, 0.5, -140)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+    mainFrame.BorderSizePixel = 0
+    mainFrame.Parent = screenGui
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 10)
+    corner.Parent = mainFrame
+    
+    local title = Instance.new("TextLabel")
+    title.Name = "Title"
+    title.Size = UDim2.new(1, 0, 0, 35)
+    title.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
+    title.BorderSizePixel = 0
+    title.TextSize = 18
+    title.TextColor3 = Color3.fromRGB(255, 100, 150)
+    title.Font = Enum.Font.GothamBold
+    title.Text = "🎮 MM2 Trade Manager"
+    title.Parent = mainFrame
+    
+
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Name = "CloseBtn"
+    closeBtn.Size = UDim2.new(0, 30, 0, 30)
+    closeBtn.Position = UDim2.new(1, -35, 0, 2)
+    closeBtn.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+    closeBtn.BorderSizePixel = 0
+    closeBtn.TextSize = 16
+    closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeBtn.Font = Enum.Font.GothamBold
+    closeBtn.Text = "✕"
+    closeBtn.Parent = mainFrame
+    
+    closeBtn.MouseButton1Click:Connect(function()
+        screenGui:Destroy()
+    end)
+    
+    local inputLabel = Instance.new("TextLabel")
+    inputLabel.Size = UDim2.new(1, -20, 0, 20)
+    inputLabel.Position = UDim2.new(0, 10, 0, 45)
+    inputLabel.BackgroundTransparency = 1
+    inputLabel.TextSize = 12
+    inputLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    inputLabel.Font = Enum.Font.Gotham
+    inputLabel.TextXAlignment = Enum.TextXAlignment.Left
+    inputLabel.Text = "Username:"
+    inputLabel.Parent = mainFrame
+    
+    local inputBox = Instance.new("TextBox")
+    inputBox.Name = "NameInput"
+    inputBox.Size = UDim2.new(1, -20, 0, 30)
+    inputBox.Position = UDim2.new(0, 10, 0, 65)
+    inputBox.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+    inputBox.BorderSizePixel = 0
+    inputBox.TextSize = 14
+    inputBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    inputBox.Font = Enum.Font.Gotham
+    inputBox.PlaceholderText = "Write partner nickname"
+    inputBox.Text = CONFIG.PARTNER_NAME
+    inputBox.Parent = mainFrame
+    
+    local inputCorner = Instance.new("UICorner")
+    inputCorner.CornerRadius = UDim.new(0, 5)
+    inputCorner.Parent = inputBox
+    
+    local randomBtn = Instance.new("TextButton")
+    randomBtn.Name = "RandomBtn"
+    randomBtn.Size = UDim2.new(0, 150, 0, 30)
+    randomBtn.Position = UDim2.new(0, 10, 0, 100)
+    randomBtn.BackgroundColor3 = Color3.fromRGB(100, 150, 255)
+    randomBtn.BorderSizePixel = 0
+    randomBtn.TextSize = 13
+    randomBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    randomBtn.Font = Enum.Font.GothamBold
+    randomBtn.Text = "🎲 Random Nick"
+    randomBtn.Parent = mainFrame
+    
+    local randomCorner = Instance.new("UICorner")
+    randomCorner.CornerRadius = UDim.new(0, 5)
+    randomCorner.Parent = randomBtn
+    
+    randomBtn.MouseButton1Click:Connect(function()
+        inputBox.Text = getRandomName()
+        CONFIG.PARTNER_NAME = inputBox.Text
+    end)
+
+    local simulateBtn = Instance.new("TextButton")
+    simulateBtn.Name = "SimulateBtn"
+    simulateBtn.Size = UDim2.new(0, 170, 0, 30)
+    simulateBtn.Position = UDim2.new(0, 170, 0, 100)
+    simulateBtn.BackgroundColor3 = Color3.fromRGB(100, 200, 100)
+    simulateBtn.BorderSizePixel = 0
+    simulateBtn.TextSize = 13
+    simulateBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    simulateBtn.Font = Enum.Font.GothamBold
+    simulateBtn.Text = "▶ Trade Request"
+    simulateBtn.Parent = mainFrame
+    
+    local simCorner = Instance.new("UICorner")
+    simCorner.CornerRadius = UDim.new(0, 5)
+    simCorner.Parent = simulateBtn
+    
+    simulateBtn.MouseButton1Click:Connect(function()
+        CONFIG.PARTNER_NAME = inputBox.Text
+        simulateTradeRequest(CONFIG.PARTNER_NAME)
+    end)
+    
+    local acceptBtn = Instance.new("TextButton")
+    acceptBtn.Name = "AcceptBtn"
+    acceptBtn.Size = UDim2.new(0, 160, 0, 30)
+    acceptBtn.Position = UDim2.new(0, 10, 0, 140)
+    acceptBtn.BackgroundColor3 = Color3.fromRGB(50, 200, 100)
+    acceptBtn.BorderSizePixel = 0
+    acceptBtn.TextSize = 13
+    acceptBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    acceptBtn.Font = Enum.Font.GothamBold
+    acceptBtn.Text = "✓ Auto Accept"
+    acceptBtn.Parent = mainFrame
+    
+    local acceptCorner = Instance.new("UICorner")
+    acceptCorner.CornerRadius = UDim.new(0, 5)
+    acceptCorner.Parent = acceptBtn
+    
+    acceptBtn.MouseButton1Click:Connect(function()
+        autoAcceptTradeRequest()
+    end)
+    
+    local confirmBtn = Instance.new("TextButton")
+    confirmBtn.Name = "ConfirmBtn"
+    confirmBtn.Size = UDim2.new(0, 160, 0, 30)
+    confirmBtn.Position = UDim2.new(0, 180, 0, 140)
+    confirmBtn.BackgroundColor3 = Color3.fromRGB(255, 150, 50)
+    confirmBtn.BorderSizePixel = 0
+    confirmBtn.TextSize = 13
+    confirmBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    confirmBtn.Font = Enum.Font.GothamBold
+    confirmBtn.Text = "✓ Confirm Trade"
+    confirmBtn.Parent = mainFrame
+    
+    local confirmCorner = Instance.new("UICorner")
+    confirmCorner.CornerRadius = UDim.new(0, 5)
+    confirmCorner.Parent = confirmBtn
+    
+    confirmBtn.MouseButton1Click:Connect(function()
+        autoConfirmTrade()
+    end)
+    
+    local infoLabel = Instance.new("TextLabel")
+    infoLabel.Size = UDim2.new(1, -20, 0, 50)
+    infoLabel.Position = UDim2.new(0, 10, 0, 180)
+    infoLabel.BackgroundTransparency = 1
+    infoLabel.TextSize = 11
+    infoLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+    infoLabel.Font = Enum.Font.Gotham
+    infoLabel.TextXAlignment = Enum.TextXAlignment.Left
+    infoLabel.TextYAlignment = Enum.TextYAlignment.Top
+    infoLabel.TextWrapped = true
+    infoLabel.Text = "1. Нажми 'Random Nick' или введи имя\n2. Нажми 'Trade Request'\n3. Нажми 'Auto Accept'\n4. Нажми 'Confirm Trade'"
+    infoLabel.Parent = mainFrame
+    
+    return screenGui
+end
+
+if init() then
+    hookTradeEvents()
+    
+    _G.MM2TradeSimulate = simulateTradeRequest
+    _G.MM2TradeAccept = autoAcceptTradeRequest
+    _G.MM2TradeConfirm = autoConfirmTrade
+    _G.MM2TradeOpenGUI = createTradeGUI
+    _G.MM2TradeRandomName = getRandomName
+    
+    print("[MM2 TRADE] Функции загружены:")
+    print("  _G.MM2TradeOpenGUI() - Открыть GUI")
+    print("  _G.MM2TradeSimulate(playerName) - Эмулировать Trade Request")
+    print("  _G.MM2TradeAccept() - Auto-accept Trade Request")
+    print("  _G.MM2TradeConfirm() - Auto-confirm Trade")
+    print("  _G.MM2TradeRandomName() - Получить случайный ник")
+    print("")
+    print("Пример: _G.MM2TradeOpenGUI()")
+    
+    createTradeGUI()
+else
+    warn("[MM2 TRADE] Инициализация не удалась")
+end
