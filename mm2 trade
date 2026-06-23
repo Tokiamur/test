@@ -1,3 +1,4 @@
+-- MM2 SCRIPT
 local player = game.Players.LocalPlayer
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
