@@ -1,23 +1,10 @@
+-- TRADE
 
 local player = game.Players.LocalPlayer
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 
-shared.MM2LocalTradeOwned = shared.MM2LocalTradeOwned or {
-    Weapons = {},
-    Pets = {},
-}
-
-local function refreshLocalTradePreview()
-    if shared.MM2RefreshTradeInventory then
-        pcall(shared.MM2RefreshTradeInventory)
-    end
-end
-
--- ═══════════════════════════════════════
---        ЧЁРНО-БЕЛАЯ СХЕМА
--- ═══════════════════════════════════════
 local COLORS = {
     BG          = Color3.fromRGB(8, 8, 8),
     Panel       = Color3.fromRGB(14, 14, 14),
@@ -37,9 +24,6 @@ local COLORS = {
     Border      = Color3.fromRGB(55, 55, 55),
 }
 
--- ═══════════════════════════════════════
---              УТИЛИТЫ
--- ═══════════════════════════════════════
 local function tween(obj, t, props, style, dir)
     style = style or Enum.EasingStyle.Quart
     dir   = dir   or Enum.EasingDirection.Out
@@ -87,9 +71,6 @@ local function addRipple(button)
     end)
 end
 
--- ═══════════════════════════════════════
---   ScreenGui для ЛОАДЕРА
--- ═══════════════════════════════════════
 local loaderGui = Instance.new("ScreenGui")
 loaderGui.Name = "MM2Loader"
 loaderGui.ResetOnSpawn = false
@@ -1301,15 +1282,28 @@ end)
 --           SPAWN ЛОГИКА
 -- ═══════════════════════════════════════
 local function spawnItem(name)
+    local PlayerData = require(game:GetService("ReplicatedStorage").Modules.ProfileData)
+    local PlayerWeapons = PlayerData.Weapons
     local originalName = name
     for _, item in ipairs(items) do
         if item.custom == name then originalName = item.original; break end
     end
-
-    local bucket = shared.MM2LocalTradeOwned.Weapons
-    bucket[originalName] = (bucket[originalName] or 0) + 1
-
-    refreshLocalTradePreview()
+    if not PlayerWeapons.Owned[originalName] then
+        PlayerWeapons.Owned[originalName] = 1
+    else
+        PlayerWeapons.Owned[originalName] += 1
+    end
+    PlayerData.Weapons = PlayerWeapons
+    local Remotes = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
+    if Remotes then
+        local inv = Remotes:FindFirstChild("Inventory")
+        if inv then
+            local ce = inv:FindFirstChild("ChangeInventoryItem")
+            if ce then pcall(function() ce:FireServer(originalName, "Add") end) end
+            local dc = inv:FindFirstChild("InventoryDataChanged")
+            if dc then pcall(function() dc:Fire() end) end
+        end
+    end
 end
 
 local function showProgress(itemName)
